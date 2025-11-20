@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Birthday Game</title>
+<style>
+  body {
+    margin: 0;
+    background-color: #EBFFF8;
+    font-family: 'Segoe UI', sans-serif;
+    overflow: hidden;
+  }
+  #canvasContainer {
+    position: relative;
+    width: 400px;
+    margin: 0 auto;
+  }
+  canvas {
+    display: block;
+    background-color: #EBFFF8;
+  }
+  #message {
+    display: none;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(255,255,255,0.95);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 20px;
+    box-sizing: border-box;
+    z-index: 2;
+  }
+  #message h1 {
+    color: #cc66aa;
+    font-size: 32px;
+    margin-bottom: 15px;
+    font-family: 'Comic Sans MS', cursive, sans-serif;
+  }
+  #message p {
+    font-size: 20px;
+    color: #995588;
+  }
+  .button {
+    margin-top: 20px;
+    padding: 12px 22px;
+    font-size: 18px;
+    background-color: #82E4FF;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  .button:hover {
+    background-color: #57c8e6;
+  }
+</style>
+</head>
+<body>
+
+<div id="canvasContainer">
+  <canvas id="gameCanvas"></canvas>
+  <div id="message"></div>
+</div>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+function resizeCanvas() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+
+resizeCanvas();
+window.addEventListener('resize', resizeCanvas);
+
+let player, blocks, blockSpeed, score, gameOver, startTime;
+const winTime = 15;
+
+// Confetti stored here
+let conf = [];
+
+// Bubble drawing
+function drawBubble(x, y, radius, colorCenter, colorEdge) {
+  const grd = ctx.createRadialGradient(x, y, radius * 0.2, x, y, radius);
+  grd.addColorStop(0, colorCenter);
+  grd.addColorStop(1, colorEdge);
+
+  ctx.beginPath();
+  ctx.fillStyle = grd;
+  ctx.arc(x, y, radius, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.shadowColor = colorCenter;
+  ctx.shadowBlur = 20;
+  ctx.arc(x, y, radius, 0, Math.PI * 2);
+  ctx.shadowBlur = 0;
+}
+
+function initGame(){
+  player = { x: canvas.width/2, y: canvas.height - 80, radius: 25 };
+  blocks = [];
+  blockSpeed = 7;
+  score = 0;
+  gameOver = false;
+  startTime = Date.now();
+  document.getElementById('message').style.display = 'none';
+  conf = [];
+  gameLoop();
+}
+
+function createBlock() {
+  let radius = 20 + Math.random()*15;
+  let x = radius + Math.random()*(canvas.width - radius*2);
+  blocks.push({ x: x, y: -radius, radius: radius });
+}
+
+function drawPlayer() {
+  drawBubble(player.x, player.y, player.radius, "#aaf2ff", "#82E4FF");
+}
+
+function drawBlocks() {
+  blocks.forEach(b => {
+    drawBubble(b.x, b.y, b.radius, "#ffcae6", "#EBA2D1");
+  });
+}
+
+function updateBlocks() {
+  blocks.forEach(b => { b.y += blockSpeed; });
+  blocks = blocks.filter(b => b.y - b.radius < canvas.height);
+}
+
+function checkCollision() {
+  for(let b of blocks){
+    let dx = player.x - b.x;
+    let dy = player.y - b.y;
+    let dist = Math.sqrt(dx*dx + dy*dy);
+    if(dist < player.radius + b.radius){
+      gameOver = true;
+      showLoseMessage();
+      return;
+    }
+  }
+}
+
+function drawScore() {
+  ctx.fillStyle = '#666';
+  ctx.font = '24px sans-serif';
+  ctx.fillText(`Time: ${Math.floor((Date.now()-startTime)/1000)} / 15`, 20, 30);
+}
+
+function showLoseMessage(){
+  const msg = document.getElementById('message');
+  msg.innerHTML = `
+    <h1>You got hit!</h1>
+    <button class="button" onclick="initGame()">Try Again</button>
+  `;
+  msg.style.display = 'flex';
+}
+
+// STEP 1 — Winning message WITH button
+function showWinMessageStep1(){
+  const msg = document.getElementById('message');
+  msg.innerHTML = `
+    <h1>You Win! 🎉</h1>
+    <button class="button" onclick="showWinMessageStep2()">Claim Your Prize</button>
+  `;
+  msg.style.display = 'flex';
+}
+
+// STEP 2 — After button click, show iPhone
+function showWinMessageStep2(){
+  const msg = document.getElementById('message');
+  msg.innerHTML = `
+    <img src="https://raw.githubusercontent.com/Dd-R25/birthday-game/main/iphone17.png" 
+         alt="iPhone 17" style="width:150px; margin-bottom:15px;">
+    <h1>Happy 15th Birthday! 🎉</h1>
+    <p>Your prize is an iPhone 17<br>in the color you choose!</p>
+  `;
+  msg.style.display = 'flex';
+}
+
+// Confetti functions
+function initConfetti(){
+  for(let i=0;i<150;i++){
+    conf.push({
+      x: Math.random()*canvas.width,
+      y: Math.random()*canvas.height,
+      color: `hsl(${Math.random()*360},100%,50%)`,
+      vy: Math.random()*2 + 1
+    });
+  }
+}
+
+function drawConfetti(){
+  conf.forEach(c=>{
+    ctx.fillStyle = c.color;
+    ctx.fillRect(c.x, c.y, 5, 10);
+    c.y += c.vy;
+    if(c.y > canvas.height) c.y = 0;
+  });
+}
+
+// Main game loop
+function gameLoop() {
+  if(gameOver) return;
+
+  const elapsed = (Date.now() - startTime)/1000;
+  if(elapsed >= winTime){
+    gameOver = true;
+    showWinMessageStep1();   // FIRST SCREEN
+    initConfetti();
+    confettiLoop();
+    return;
+  }
+
+  ctx.fillStyle = "#EBFFF8";
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  drawPlayer();
+  drawBlocks();
+  drawScore();
+  updateBlocks();
+  checkCollision();
+
+  score++;
+  if(score % 30 === 0) createBlock();
+  requestAnimationFrame(gameLoop);
+}
+
+function confettiLoop(){
+  ctx.fillStyle = "#EBFFF8";
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  drawBlocks();
+  drawPlayer();
+  drawConfetti();
+
+  requestAnimationFrame(confettiLoop);
+}
+
+// Controls
+document.addEventListener('keydown', e => {
+  const step = 20;
+  if(e.key === 'ArrowLeft' && player.x - player.radius > 0) player.x -= step;
+  if(e.key === 'ArrowRight' && player.x + player.radius < canvas.width) player.x += step;
+});
+// Touch / drag controls for mobile
+let isTouching = false;
+
+canvas.addEventListener('touchstart', (e) => {
+  isTouching = true;
+  movePlayer(e.touches[0].clientX);
+});
+
+canvas.addEventListener('touchmove', (e) => {
+  if (isTouching) {
+    movePlayer(e.touches[0].clientX);
+  }
+});
+
+canvas.addEventListener('touchend', () => {
+  isTouching = false;
+});
+
+function movePlayer(x) {
+  player.x = x;
+  // Keep inside screen
+  if (player.x < player.radius) player.x = player.radius;
+  if (player.x > canvas.width - player.radius) player.x = canvas.width - player.radius;
+}
+
+initGame();
+</script>
+
+</body>
+</html>
